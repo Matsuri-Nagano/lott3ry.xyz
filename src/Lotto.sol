@@ -31,6 +31,8 @@ contract Lotto is ERC20 {
     uint256 public maxRewardMultiplier;
     uint256 public constant FEED_BUFFER = 2 hours;
 
+    uint8 private _decimals = 6;
+
     // TODO assign USDC address for chain ...
     IERC20 public constant usdc = IERC20(address(0)); // USDC
 
@@ -71,6 +73,10 @@ contract Lotto is ERC20 {
         // styling, init epoch at 1
         currentEpoch = 1;
         epoch[1].deadline = _nextFeedTime - FEED_BUFFER;
+    }
+
+    function decimals() external view returns (uint8) {
+        return _decimals;
     }
 
     function buy(uint256 _number, uint256 _amount) external ensureNextEpoch {
@@ -119,7 +125,6 @@ contract Lotto is ERC20 {
         _epochInfo.winningNumber = _winningNumber;
         
         // update poolPrizeBalance in pool, deduct from winning reward
-        // TODO import Math
         uint256 totalReward = Math.min(totalPurchased[currentEpoch][_winningNumber] * maxRewardMultiplier, poolPrizeBalance);
         unchecked {
             poolPrizeBalance -= totalReward;
