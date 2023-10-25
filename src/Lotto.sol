@@ -2,14 +2,14 @@
 pragma solidity ^0.8.13;
 
 // interface
-import { IERC20 } from "@openzeppelin-contracts/token/ERC20/IERC20.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 // contract
 import { MockOracle } from "./MockOracle.sol";
-import { ERC20 } from "@openzeppelin-contracts/token/ERC20/ERC20.sol";
-import { Ownable } from "@openzeppelin-contracts/access/Ownable.sol";
+import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 // lib
-import { SafeERC20 } from "@openzeppelin-contracts/token/ERC20/utils/SafeERC20.sol";
-import { Math } from "@openzeppelin-contracts/utils/math/Math.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 
 contract Lotto is ERC20, Ownable {
     using SafeERC20 for IERC20;
@@ -47,6 +47,7 @@ contract Lotto is ERC20, Ownable {
     event JoinPoolPrize(address indexed user, uint256 amount, uint256 share);
     event ExitPoolPrize(address indexed user, uint256 amount, uint256 share);
 
+    error InvalidAmount();
     error InvalidEpochDeadline();
     error InvalidTicketNumber();
     error InvalidWinningNumber();
@@ -66,17 +67,17 @@ contract Lotto is ERC20, Ownable {
     constructor(
         address _oracleAddress,
         uint256 _maxRewardMultiplier
-    ) {
+    ) Ownable(msg.sender) ERC20("Lotto.xyz's Share Token", "LOTTO") {
         oracle = MockOracle(_oracleAddress);
         maxRewardMultiplier = _maxRewardMultiplier;
         // get next deadline from Oracle, sub for 2 hours est.
         ( , uint128 _nextFeedTime) = abi.decode(oracle.getWinningNumberAndNextDeadline(), (uint128, uint128));
         // styling, init epoch at 1
         currentEpoch = 1;
-        epoch[1].deadline = _nextFeedTime - FEED_BUFFER;
+        epoch[1].deadline = uint64(_nextFeedTime - FEED_BUFFER);
     }
 
-    function decimals() external view returns (uint8) {
+    function decimals() public view override returns (uint8) {
         return _decimals;
     }
 
@@ -123,7 +124,7 @@ contract Lotto is ERC20, Ownable {
         // update winning number for current epoch when ended & ensure oracle feed new reward, prevent front-run, 2 hours est.
         Epoch storage _epochInfo = epoch[currentEpoch];
         if (_epochInfo.deadline < _nextFeedTime - FEED_BUFFER) revert InvalidEpochDeadline();
-        _epochInfo.winningNumber = _winningNumber;
+        _epochInfo.winningNumber = uint32(_winningNumber);
         
         // update poolPrizeBalance in pool, deduct from winning reward
         uint256 totalReward = Math.min(totalPurchased[currentEpoch][_winningNumber] * maxRewardMultiplier, poolPrizeBalance);
@@ -131,14 +132,14 @@ contract Lotto is ERC20, Ownable {
             poolPrizeBalance -= totalReward;
         }
         // update totalReward for current epoch
-        _epochInfo.totalReward = totalReward;
+        _epochInfo.totalReward = uint128(totalReward);
 
         // update next epoch info
         unchecked {
             currentEpoch++;
         }
         Epoch storage _nextEpochInfo = epoch[currentEpoch];
-        _nextEpochInfo.deadline = _nextFeedTime - FEED_BUFFER;
+        _nextEpochInfo.deadline = uint64(_nextFeedTime - FEED_BUFFER);
     }
 
     function joinPoolPrize(uint256 _amount) external ensureNextEpoch {
