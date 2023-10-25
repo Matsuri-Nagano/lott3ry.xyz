@@ -6,11 +6,12 @@ import { IERC20 } from "@openzeppelin-contracts/token/ERC20/IERC20.sol";
 // contract
 import { MockOracle } from "./MockOracle.sol";
 import { ERC20 } from "@openzeppelin-contracts/token/ERC20/ERC20.sol";
+import { Ownable } from "@openzeppelin-contracts/access/Ownable.sol";
 // lib
 import { SafeERC20 } from "@openzeppelin-contracts/token/ERC20/utils/SafeERC20.sol";
 import { Math } from "@openzeppelin-contracts/utils/math/Math.sol";
 
-contract Lotto is ERC20 {
+contract Lotto is ERC20, Ownable {
     using SafeERC20 for IERC20;
 
     struct Epoch {
@@ -168,14 +169,12 @@ contract Lotto is ERC20 {
         emit ExitPoolPrize(msg.sender, amount, _share);
     }
 
-    // write me setter function
-    function setOracleAddress(address _oracleAddress) external {
+    function setOracleAddress(address _oracleAddress) external onlyOwner {
         emit SetOracleAddress(address(oracle), _oracleAddress);
         oracle = MockOracle(_oracleAddress);
     }
 
-    // write me setter function
-    function setMaxRewardMultiplier(uint256 _maxRewardMultiplier) external {
+    function setMaxRewardMultiplier(uint256 _maxRewardMultiplier) external onlyOwner {
         emit SetMaxRewardMultiplier(maxRewardMultiplier, _maxRewardMultiplier);
         maxRewardMultiplier = _maxRewardMultiplier;
     }
