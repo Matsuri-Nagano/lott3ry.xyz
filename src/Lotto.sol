@@ -25,8 +25,7 @@ contract Lotto is ERC20, Ownable {
     }
 
     // user -> epoch -> number -> deposit amount
-    mapping(address => mapping(uint256 => mapping(uint256 => uint256)))
-        public userLottery;
+    mapping(address => mapping(uint256 => mapping(uint256 => uint256))) public userLottery;
     // epoch -> number -> amount
     mapping(uint256 => mapping(uint256 => uint256)) public totalPurchased;
     // epoch -> epoch info
@@ -37,31 +36,13 @@ contract Lotto is ERC20, Ownable {
     uint256 public maxRewardMultiplier;
     uint256 public constant FEED_BUFFER = 2 hours;
 
-    uint8 private _decimals = 6;
-
     IERC20 public immutable usdc;
     MockOracle public oracle;
 
-    event SetOracleAddress(
-        address indexed oldAddress,
-        address indexed newAddress
-    );
-    event SetMaxRewardMultiplier(
-        uint256 indexed oldVal,
-        uint256 indexed newVal
-    );
-    event Buy(
-        address indexed user,
-        uint256 indexed epoch,
-        uint256 indexed number,
-        uint256 amount
-    );
-    event Redeem(
-        address indexed user,
-        uint256 indexed epoch,
-        uint256 indexed number,
-        uint256 amount
-    );
+    event SetOracleAddress(address indexed oldAddress, address indexed newAddress);
+    event SetMaxRewardMultiplier(uint256 indexed oldVal, uint256 indexed newVal);
+    event Buy(address indexed user, uint256 indexed epoch, uint256 indexed number, uint256 amount);
+    event Redeem(address indexed user, uint256 indexed epoch, uint256 indexed number, uint256 amount);
     event JoinPoolPrize(address indexed user, uint256 amount, uint256 share);
     event ExitPoolPrize(address indexed user, uint256 amount, uint256 share);
     event EndAndStartNewEpoch(uint256 nextEpoch, uint64 deadline);
@@ -84,26 +65,22 @@ contract Lotto is ERC20, Ownable {
         _;
     }
 
-    constructor(
-        address _oracleAddress,
-        address _usdc,
-        uint256 _maxRewardMultiplier
-    ) Ownable(msg.sender) ERC20("Lotto.xyz's Share Token", "LOTTO") {
+    constructor(address _oracleAddress, address _usdc, uint256 _maxRewardMultiplier)
+        Ownable(msg.sender)
+        ERC20("Lotto.xyz's Share Token", "LOTTO")
+    {
         oracle = MockOracle(_oracleAddress);
         maxRewardMultiplier = _maxRewardMultiplier;
         usdc = IERC20(_usdc);
         // get next deadline from Oracle, sub for 2 hours est.
-        (, uint128 _nextFeedTime) = abi.decode(
-            oracle.getWinningNumberAndNextDeadline(),
-            (uint128, uint128)
-        );
+        (, uint128 _nextFeedTime) = abi.decode(oracle.getWinningNumberAndNextDeadline(), (uint128, uint128));
         // styling, init epoch at 1
         currentEpoch = 1;
         epoch[1].deadline = uint64(_nextFeedTime - FEED_BUFFER);
     }
 
-    function decimals() public view override returns (uint8) {
-        return _decimals;
+    function decimals() public pure override returns (uint8) {
+        return 6;
     }
 
     /**
@@ -115,7 +92,7 @@ contract Lotto is ERC20, Ownable {
     function buy(uint256 _number, uint256 _amount) external ensureNextEpoch {
         // check valid number from 000000 to 999999
         if (_number >= 1_000_000) revert InvalidTicketNumber();
-
+        usdc.safeTransferFrom(msg.sender, address(this), _amount);
         uint256 _currentEpoch = currentEpoch;
 
         unchecked {
@@ -124,7 +101,6 @@ contract Lotto is ERC20, Ownable {
             totalPurchased[_currentEpoch][_number] += _amount;
         }
 
-        usdc.safeTransferFrom(msg.sender, address(this), _amount);
         emit Buy(msg.sender, _currentEpoch, _number, _amount);
     }
 
@@ -134,10 +110,7 @@ contract Lotto is ERC20, Ownable {
      * @param _epoch epoch to redeem
      * @param _number number to redeem
      */
-    function redeem(
-        uint256 _epoch,
-        uint256 _number
-    ) external returns (uint256 toWithdraw) {
+    function redeem(uint256 _epoch, uint256 _number) external returns (uint256 toWithdraw) {
         // NOTE: ignore checking _epoch, since it'll revert if _epoch is invalid anyway
         Epoch memory _epochInfo = epoch[_epoch];
         if (block.timestamp > _epochInfo.deadline) {
@@ -152,9 +125,7 @@ contract Lotto is ERC20, Ownable {
         uint256 _amount = userLottery[msg.sender][_epoch][_number];
         if (_amount == 0) revert NotPurchased();
 
-        toWithdraw =
-            (_amount * _epochInfo.totalReward) /
-            totalPurchased[_epoch][_number];
+        toWithdraw = (_amount * _epochInfo.totalReward) / totalPurchased[_epoch][_number];
         userLottery[msg.sender][_epoch][_number] = 0;
 
         usdc.safeTransfer(msg.sender, toWithdraw);
@@ -168,10 +139,8 @@ contract Lotto is ERC20, Ownable {
      */
     function endAndStartNewEpoch() public {
         uint256 _currentEpoch = currentEpoch;
-        (uint128 _winningNumber, uint128 _nextFeedTime) = abi.decode(
-            oracle.getWinningNumberAndNextDeadline(),
-            (uint128, uint128)
-        );
+        (uint128 _winningNumber, uint128 _nextFeedTime) =
+            abi.decode(oracle.getWinningNumberAndNextDeadline(), (uint128, uint128));
         // update winning number for current epoch when ended & ensure oracle feed new reward, prevent front-run, 2 hours est.
         Epoch storage _epochInfo = epoch[_currentEpoch];
         if (_epochInfo.deadline < _nextFeedTime - FEED_BUFFER) {
@@ -180,10 +149,8 @@ contract Lotto is ERC20, Ownable {
         _epochInfo.winningNumber = uint32(_winningNumber);
 
         // update poolPrizeBalance in pool, deduct from winning reward
-        uint256 totalReward = Math.min(
-            totalPurchased[_currentEpoch][_winningNumber] * maxRewardMultiplier,
-            poolPrizeBalance
-        );
+        uint256 totalReward =
+            Math.min(totalPurchased[_currentEpoch][_winningNumber] * maxRewardMultiplier, poolPrizeBalance);
         unchecked {
             poolPrizeBalance -= totalReward;
         }
@@ -209,20 +176,12 @@ contract Lotto is ERC20, Ownable {
      * @param _amount amount of USDC to join pool prize
      * @return share amount of share token
      */
-    function joinPoolPrize(
-        uint256 _amount
-    ) external ensureNextEpoch returns (uint256 share) {
+    function joinPoolPrize(uint256 _amount) external ensureNextEpoch returns (uint256 share) {
         if (_amount == 0) revert InvalidAmount();
-        uint256 _currentEpoch = currentEpoch;
-        Epoch storage _epochInfo = epoch[_currentEpoch];
-
         usdc.safeTransferFrom(msg.sender, address(this), _amount);
-
         uint256 totalSupply = totalSupply();
 
-        share = totalSupply == 0
-            ? _amount
-            : (_amount * totalSupply) / poolPrizeBalance;
+        share = totalSupply == 0 ? _amount : (_amount * totalSupply) / poolPrizeBalance;
 
         unchecked {
             poolPrizeBalance += _amount;
@@ -240,9 +199,7 @@ contract Lotto is ERC20, Ownable {
      * @param _share amount of USDC to join pool prize
      * @return amount amount of USDC received from redeem share
      */
-    function exitPoolPrize(
-        uint256 _share
-    ) external ensureNextEpoch returns (uint256 amount) {
+    function exitPoolPrize(uint256 _share) external ensureNextEpoch returns (uint256 amount) {
         if (_share == 0) revert InvalidAmount();
 
         amount = (_share * poolPrizeBalance) / totalSupply();
@@ -256,9 +213,7 @@ contract Lotto is ERC20, Ownable {
         oracle = MockOracle(_oracleAddress);
     }
 
-    function setMaxRewardMultiplier(
-        uint256 _maxRewardMultiplier
-    ) external onlyOwner {
+    function setMaxRewardMultiplier(uint256 _maxRewardMultiplier) external onlyOwner {
         emit SetMaxRewardMultiplier(maxRewardMultiplier, _maxRewardMultiplier);
         maxRewardMultiplier = _maxRewardMultiplier;
     }
