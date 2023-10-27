@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
+/// @title Lotto contract
+/// @author Matsuri-Nagano
+/// @notice This contract is used for Lotto game
+
 // interface
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 // contract
@@ -35,9 +39,7 @@ contract Lotto is ERC20, Ownable {
 
     uint8 private _decimals = 6;
 
-    // TODO assign USDC address for chain ...
-    IERC20 public constant usdc = IERC20(address(0)); // USDC
-
+    IERC20 public immutable usdc;
     MockOracle public oracle;
 
     event SetOracleAddress(
@@ -84,10 +86,12 @@ contract Lotto is ERC20, Ownable {
 
     constructor(
         address _oracleAddress,
+        address _usdc,
         uint256 _maxRewardMultiplier
     ) Ownable(msg.sender) ERC20("Lotto.xyz's Share Token", "LOTTO") {
         oracle = MockOracle(_oracleAddress);
         maxRewardMultiplier = _maxRewardMultiplier;
+        usdc = IERC20(_usdc);
         // get next deadline from Oracle, sub for 2 hours est.
         (, uint128 _nextFeedTime) = abi.decode(
             oracle.getWinningNumberAndNextDeadline(),
@@ -102,6 +106,12 @@ contract Lotto is ERC20, Ownable {
         return _decimals;
     }
 
+    /**
+     * @dev This function is for anyone wishes to buy ticket
+     *      By inputting number and amount of USDC they wish to buy
+     * @param _number number from 0000000 to 999999
+     * @param _amount amount of USDC to buy
+     */
     function buy(uint256 _number, uint256 _amount) external ensureNextEpoch {
         // check valid number from 000000 to 999999
         if (_number >= 1_000_000) revert InvalidTicketNumber();
@@ -118,6 +128,12 @@ contract Lotto is ERC20, Ownable {
         emit Buy(msg.sender, _currentEpoch, _number, _amount);
     }
 
+    /**
+     * @dev This function is for anyone wishes to redeem ticket
+     *      By inputting epoch and number they win in that epoch, incase they won
+     * @param _epoch epoch to redeem
+     * @param _number number to redeem
+     */
     function redeem(
         uint256 _epoch,
         uint256 _number
@@ -145,6 +161,11 @@ contract Lotto is ERC20, Ownable {
         emit Redeem(msg.sender, _epoch, _number, toWithdraw);
     }
 
+    /**
+     * @dev end current epoch and start new epoch,
+     * this public function is called by `ensureNextEpoch` modifier,
+     * or could be called by anyone.
+     */
     function endAndStartNewEpoch() public {
         uint256 _currentEpoch = currentEpoch;
         (uint128 _winningNumber, uint128 _nextFeedTime) = abi.decode(
@@ -153,8 +174,9 @@ contract Lotto is ERC20, Ownable {
         );
         // update winning number for current epoch when ended & ensure oracle feed new reward, prevent front-run, 2 hours est.
         Epoch storage _epochInfo = epoch[_currentEpoch];
-        if (_epochInfo.deadline < _nextFeedTime - FEED_BUFFER)
+        if (_epochInfo.deadline < _nextFeedTime - FEED_BUFFER) {
             revert InvalidEpochDeadline();
+        }
         _epochInfo.winningNumber = uint32(_winningNumber);
 
         // update poolPrizeBalance in pool, deduct from winning reward
@@ -179,7 +201,17 @@ contract Lotto is ERC20, Ownable {
         emit EndAndStartNewEpoch(_currentEpoch, _nextEpochInfo.deadline);
     }
 
-    function joinPoolPrize(uint256 _amount) external ensureNextEpoch {
+    /**
+     * @notice This function is for anyone wishes to join pool prize
+     *         which, will calculate share amount of contract's token
+     *         for profit/loss calculation
+     * @dev This function will mint share token to msg.sender
+     * @param _amount amount of USDC to join pool prize
+     * @return share amount of share token
+     */
+    function joinPoolPrize(
+        uint256 _amount
+    ) external ensureNextEpoch returns (uint256 share) {
         if (_amount == 0) revert InvalidAmount();
         uint256 _currentEpoch = currentEpoch;
         Epoch storage _epochInfo = epoch[_currentEpoch];
@@ -188,7 +220,7 @@ contract Lotto is ERC20, Ownable {
 
         uint256 totalSupply = totalSupply();
 
-        uint256 share = totalSupply == 0
+        share = totalSupply == 0
             ? _amount
             : (_amount * totalSupply) / poolPrizeBalance;
 
@@ -200,10 +232,20 @@ contract Lotto is ERC20, Ownable {
         emit JoinPoolPrize(msg.sender, _amount, share);
     }
 
-    function exitPoolPrize(uint256 _share) external ensureNextEpoch {
+    /**
+     * @notice This function is for anyone wishes to exit pool prize
+     *         which, will redeem input share, then calculate it
+     *         into USDC amount.
+     * @dev This function will burn share token from msg.sender
+     * @param _share amount of USDC to join pool prize
+     * @return amount amount of USDC received from redeem share
+     */
+    function exitPoolPrize(
+        uint256 _share
+    ) external ensureNextEpoch returns (uint256 amount) {
         if (_share == 0) revert InvalidAmount();
 
-        uint256 amount = (_share * poolPrizeBalance) / totalSupply();
+        amount = (_share * poolPrizeBalance) / totalSupply();
         _burn(msg.sender, _share);
         usdc.safeTransfer(msg.sender, amount);
         emit ExitPoolPrize(msg.sender, amount, _share);

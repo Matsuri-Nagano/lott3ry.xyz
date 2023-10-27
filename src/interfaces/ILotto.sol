@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 interface ILotto {
     // view state
@@ -21,16 +21,14 @@ interface ILotto {
 
     function decimals() external view returns (uint8);
 
-
     // write functions
     function buy(uint256 number, uint256 amount) external;
-    
+
     function redeem(uint256 epoch, uint256 number) external;
-    
+
     function joinPoolPrize(uint256 amount) external;
-    
+
     function exitPoolPrize(uint256 share) external;
-    
+
     function endAndStartNewEpoch() external;
-    
 }
