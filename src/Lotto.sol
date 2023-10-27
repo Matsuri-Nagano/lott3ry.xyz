@@ -62,6 +62,7 @@ contract Lotto is ERC20, Ownable {
     );
     event JoinPoolPrize(address indexed user, uint256 amount, uint256 share);
     event ExitPoolPrize(address indexed user, uint256 amount, uint256 share);
+    event EndAndStartNewEpoch(uint256 nextEpoch, uint64 deadline);
 
     error InvalidAmount();
     error InvalidEpochDeadline();
@@ -170,9 +171,12 @@ contract Lotto is ERC20, Ownable {
         // update next epoch info
         unchecked {
             _currentEpoch++;
+            currentEpoch = _currentEpoch;
         }
         Epoch storage _nextEpochInfo = epoch[_currentEpoch];
         _nextEpochInfo.deadline = uint64(_nextFeedTime - FEED_BUFFER);
+
+        emit EndAndStartNewEpoch(_currentEpoch, _nextEpochInfo.deadline);
     }
 
     function joinPoolPrize(uint256 _amount) external ensureNextEpoch {
