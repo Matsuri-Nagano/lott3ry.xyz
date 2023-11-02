@@ -203,6 +203,9 @@ contract Lotto is ERC20, Ownable {
         if (_share == 0) revert InvalidAmount();
 
         amount = (_share * poolPrizeBalance) / totalSupply();
+        unchecked {
+            poolPrizeBalance -= amount;
+        }
         _burn(msg.sender, _share);
         usdc.safeTransfer(msg.sender, amount);
         emit ExitPoolPrize(msg.sender, amount, _share);
