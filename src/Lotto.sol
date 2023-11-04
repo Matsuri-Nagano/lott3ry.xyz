@@ -194,20 +194,28 @@ contract Lotto is ERC20, Ownable {
     /**
      * @notice This function is for anyone wishes to exit pool prize
      *         which, will redeem input share, then calculate it
-     *         into USDC amount.
+     *         into USDC amount. Allow only at the end of the epoch,
+     *         with 2 days delay. If exceed, force onto next epoch.
      * @dev This function will burn share token from msg.sender
      * @param _share amount of USDC to join pool prize
      * @return amount amount of USDC received from redeem share
      */
-    function exitPoolPrize(uint256 _share, uint256 _epoch) external ensureNextEpoch returns (uint256 amount) {
-        uint256 _currentEpoch = currentEpoch;
-        require(
-            _epoch < _currentEpoch || (_epoch == _currentEpoch && block.timestamp > epoch[_currentEpoch].deadline),
-            "Can only redeem from past epochs or after the current epoch's deadline"
-        );
+    function exitPoolPrize(uint256 _share) external ensureNextEpoch returns (uint256 amount) {
         if (_share == 0) revert InvalidAmount();
+        uint256 _currentEpoch = currentEpoch;
+        uint256 _toUseEpoch = block.timestamp > epoch[_currentEpoch].deadline + 2 days // max delay for exit per epoch
+            ? _currentEpoch
+            : _currentEpoch - 1;
 
-        uint256 totalAvailable = poolPrizeBalance - epoch[_currentEpoch].totalReward;
+        require(
+            block.timestamp > epoch[_toUseEpoch].deadline && block.timestamp <= epoch[_toUseEpoch].deadline + 2 days
+        );
+
+        uint256 totalRewards = 0;
+        for (uint256 i = 0; i < _toUseEpoch;) {
+            totalRewards += epoch[i].totalReward;
+        }
+        uint256 totalAvailable = poolPrizeBalance - totalRewards;
 
         amount = (_share * totalAvailable) / totalSupply();
         unchecked {
