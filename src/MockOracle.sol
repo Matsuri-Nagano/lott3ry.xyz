@@ -14,4 +14,8 @@ contract MockOracle {
     function getWinningNumberAndNextDeadline() external view returns (bytes memory) {
         return lastAnswer;
     }
+
+    function setWinningNumberAndNextDeadline(uint128 _winningNumber, uint128 _nextFeedTime) external {
+        lastAnswer = bytes(abi.encode(_winningNumber, _nextFeedTime));
+    }
 }
