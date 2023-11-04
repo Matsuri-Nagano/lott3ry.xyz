@@ -22,6 +22,7 @@ contract Lotto is ERC20, Ownable {
         uint32 winningNumber;
         uint64 deadline;
         uint128 totalReward;
+        uint128 redeemedReward;
     }
 
     // user -> epoch -> number -> deposit amount
@@ -128,7 +129,9 @@ contract Lotto is ERC20, Ownable {
         toWithdraw = (_amount * _epochInfo.totalReward) / totalPurchased[_epoch][_number];
         userLottery[msg.sender][_epoch][_number] = 0;
 
+        _epochInfo.redeemedReward += uint128(toWithdraw);
         usdc.safeTransfer(msg.sender, toWithdraw);
+
         emit Redeem(msg.sender, _epoch, _number, toWithdraw);
     }
 
@@ -213,7 +216,7 @@ contract Lotto is ERC20, Ownable {
 
         uint256 totalRewards = 0;
         for (uint256 i = 0; i < _toUseEpoch;) {
-            totalRewards += epoch[i].totalReward;
+            totalRewards += (epoch[i].totalReward - epoch[i].redeemedReward);
         }
         uint256 totalAvailable = poolPrizeBalance - totalRewards;
 
