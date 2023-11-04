@@ -199,10 +199,17 @@ contract Lotto is ERC20, Ownable {
      * @param _share amount of USDC to join pool prize
      * @return amount amount of USDC received from redeem share
      */
-    function exitPoolPrize(uint256 _share) external ensureNextEpoch returns (uint256 amount) {
+    function exitPoolPrize(uint256 _share, uint256 _epoch) external ensureNextEpoch returns (uint256 amount) {
+        uint256 _currentEpoch = currentEpoch;
+        require(
+            _epoch < _currentEpoch || (_epoch == _currentEpoch && block.timestamp > epoch[_currentEpoch].deadline),
+            "Can only redeem from past epochs or after the current epoch's deadline"
+        );
         if (_share == 0) revert InvalidAmount();
 
-        amount = (_share * poolPrizeBalance) / totalSupply();
+        uint256 totalAvailable = poolPrizeBalance - epoch[_currentEpoch].totalReward;
+
+        amount = (_share * totalAvailable) / totalSupply();
         unchecked {
             poolPrizeBalance -= amount;
         }
