@@ -209,7 +209,8 @@ contract Lotto is ERC20, Ownable {
             : _currentEpoch - 1;
 
         require(
-            block.timestamp > epoch[_toUseEpoch].deadline && block.timestamp <= epoch[_toUseEpoch].deadline + 2 days
+            block.timestamp > epoch[_toUseEpoch].deadline && block.timestamp <= epoch[_toUseEpoch].deadline + 2 days,
+            "Lotto: invalid time to exit pool prize"
         );
 
         amount = (_share * poolPrizeBalance) / totalSupply();
